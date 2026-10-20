@@ -1,0 +1,168 @@
+# 📚 Multi-PDF RAG Chatbot
+
+Ask questions across several PDF documents and get answers grounded **only** in their content, with page-level sources. Built with Streamlit, LangChain, FAISS and sentence-transformer embeddings, with a swappable LLM backend.
+
+> **Live demo:** _add your Streamlit link here after deploying_
+
+<!-- Add a screenshot or GIF here: ![Demo](docs/demo.gif) -->
+
+## Features
+
+- **Multi-document Q&A** - upload up to 5 PDFs and query them together
+- **Grounded answers with sources** - every answer lists the file and page it came from, and you can inspect the exact retrieved chunks
+- **Streaming responses** with automatic fallback for providers that do not support streaming
+- **Swappable LLM backend** - Hugging Face, Groq, OpenRouter, or a local Ollama model, selected by configuration only
+- **Conversation memory** - recent turns are passed to the model so follow-up questions work
+- **Retrieval evaluation tool** - define test questions with expected keywords and measure how well retrieval finds them (useful for tuning chunk size, `k`, and MMR)
+- **One-click sample document** (built into `app.py`) so the app can be tried without uploading anything
+- **Polished UI** - gradient header, step cards, index statistics, rounded chat bubbles, and clickable suggested questions for the sample document
+- **Deployment guard rails** - limits on files, size, pages and questions per session, plus friendly messages for quota / rate-limit / auth errors
+- **API-quota protection for public demos** - a shared daily question cap and instant cached answers for the sample document's suggested questions (see below)
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[PDF files] --> B[Text extraction<br/>pypdf]
+    B --> C[Chunking<br/>RecursiveCharacterTextSplitter]
+    C --> D[Embeddings<br/>all-MiniLM-L6-v2]
+    D --> E[(FAISS index)]
+    Q[User question] --> F[Retriever<br/>MMR or similarity]
+    E --> F
+    F --> G[Prompt with retrieved context]
+    G --> H[LLM<br/>HF / Groq / Ollama]
+    H --> I[Answer + sources]
+```
+
+1. **Ingest** - text is extracted page by page, keeping `source` and `page` metadata.
+2. **Index** - pages are split into overlapping chunks, embedded locally, and stored in an in-memory FAISS index.
+3. **Retrieve** - the question is embedded and the top-`k` chunks are fetched (MMR keeps results diverse).
+4. **Generate** - the chunks are placed in a strict "answer only from the context" prompt, and the LLM response is streamed back with its sources.
+
+Embeddings run locally; only the retrieved text snippets are sent to the LLM provider.
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| UI | Streamlit |
+| PDF parsing | pypdf |
+| Chunking / vector store | LangChain text splitters, FAISS (CPU) |
+| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
+| LLM | Hugging Face Inference Providers or any OpenAI-compatible API |
+
+## Run locally
+
+```bash
+git clone https://github.com/<your-username>/<your-repo>.git
+cd <your-repo>
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Create a file named `.env` next to `app.py` with your LLM settings (see [Configuration](#configuration) below), then start the app:
+
+```bash
+streamlit run app.py
+```
+
+The first start downloads the embedding model, which takes a minute.
+
+## Configuration
+
+Settings are read from Streamlit secrets first, then from environment variables / `.env`.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `LLM_BACKEND` | `hf` (Hugging Face) or `openai` (any OpenAI-compatible API) | `hf` |
+| `HF_TOKEN` | Hugging Face token (when `LLM_BACKEND=hf`) | - |
+| `LLM_BASE_URL` | API base URL (when `LLM_BACKEND=openai`) | - |
+| `LLM_API_KEY` | API key for that provider (Ollama ignores it) | `ollama` |
+| `LLM_MODEL` | Model identifier at your provider | `CohereLabs/tiny-aya-global` |
+| `MAX_FILES`, `MAX_TOTAL_MB`, `MAX_PAGES`, `MAX_QUESTIONS` | Guard rails for public demos (`MAX_QUESTIONS` is per browser session) | 5, 25, 300, 40 |
+| `MAX_DAILY_QUESTIONS` | LLM questions allowed per day across **all** visitors (UTC); `0` = unlimited | 100 |
+
+**Examples**
+
+```ini
+# Groq (hosted, free tier - good for a public demo)
+LLM_BACKEND=openai
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_API_KEY=your_key
+LLM_MODEL=<model id from the Groq console>
+
+# Local Ollama (no limits, local use only)
+LLM_BACKEND=openai
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=ollama
+LLM_MODEL=llama3.2:3b
+```
+
+## Deploy on Streamlit Community Cloud
+
+1. Push this folder to a **public GitHub repo**. `.env` is listed in `.gitignore`, so your keys stay private - run `git status` first to confirm it is not staged.
+2. Go to [share.streamlit.io](https://share.streamlit.io), click **Create app**, choose your repo and branch, and set the main file to `app.py`.
+3. Open **Advanced settings**, pick Python **3.11 or 3.12**, and paste your settings into **Secrets** (the same values you keep in `.env` locally):
+   ```toml
+   LLM_BACKEND = "openai"
+   LLM_BASE_URL = "https://api.groq.com/openai/v1"
+   LLM_API_KEY = "your_key"
+   LLM_MODEL = "model_id"
+   ```
+4. Click **Deploy**. The first build installs PyTorch and downloads the embedding model, so expect several minutes.
+
+> Use a hosted provider (Groq, OpenRouter or Hugging Face) for the deployed app. A local Ollama server is not reachable from Streamlit Cloud.
+
+## Protecting your API quota
+
+Every question that reaches the LLM uses tokens from *your* API key, so a public demo needs protection:
+
+- **Shared daily cap** (`MAX_DAILY_QUESTIONS`, default 100) - once today's budget is used, visitors see a friendly "try again tomorrow" notice instead of errors. Failed LLM calls are refunded, so outages don't burn the budget. Set it from your provider's free-tier limits.
+- **Cached sample answers** - the first good answer to each suggested sample question is kept in memory, and later visitors get it instantly with no tokens. Cached answers are labelled "Instant answer". Only clean, first-turn answers are stored, and only under default retrieval settings. Errors and "could not find" replies are never cached.
+- **Per-session limit** (`MAX_QUESTIONS`) - slows down repeated use from one browser tab.
+
+Both the daily counter and the cache live in server memory, so they reset when the app restarts or wakes from sleep. Treat them as best-effort protection and still check your provider's usage dashboard.
+
+## Customizing the look
+
+- **Accent color (optional):** create `.streamlit/config.toml` to change the color of buttons, sliders and toggles:
+  ```toml
+  [theme]
+  primaryColor = "#4F46E5"
+  ```
+- **Header gradient, cards, chat bubbles:** edit the `APP_CSS` block near the top of the UI helpers in `app.py`; the two gradient colors are in `.hero`.
+- **Header text and badges:** edit `render_hero()` in `app.py`.
+- **Dark / light mode:** the custom styling uses translucent colors, so it follows the viewer's Streamlit theme.
+
+## Evaluating retrieval
+
+Open **Retrieval evaluation** in the app, list questions with the keywords that must appear in the retrieved chunks, and run it. The score is the share of expected keywords found across the retrieved chunks. This is a fast proxy for retrieval quality; it does not judge the final LLM answer. The defaults target the built-in sample document.
+
+## Project structure
+
+```
+.
+├── app.py             # Streamlit app (ingestion, retrieval, generation, UI)
+├── requirements.txt   # Python dependencies
+├── README.md
+├── .gitignore         # keeps .env out of Git
+└── .env               # your local settings - never committed
+```
+
+## Limitations
+
+- The index lives in memory per session, so it is rebuilt after a refresh.
+- Scanned or image-only PDFs are skipped (no OCR).
+- Answer quality depends on the chosen LLM; very small models may be less accurate.
+- Follow-up questions use history for generation, but retrieval uses only the latest question.
+
+## Roadmap
+
+- Rewrite follow-up questions into standalone queries before retrieval
+- Persist the FAISS index to disk
+- OCR fallback for scanned PDFs
+- Answer-quality evaluation (faithfulness / relevance) on top of retrieval metrics
+
+## Author
+
+**Devashish Dobhal** - [GitHub](https://github.com/Devashish07dobhal) 
