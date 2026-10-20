@@ -2,9 +2,9 @@
 
 Ask questions across several PDF documents and get answers grounded **only** in their content, with page-level sources. Built with Streamlit, LangChain, FAISS and sentence-transformer embeddings, with a swappable LLM backend.
 
-> **Live demo:** _add your Streamlit link here after deploying_
 
-<!-- Add a screenshot or GIF here: ![Demo](docs/demo.gif) -->
+
+
 
 ## Features
 
