@@ -2,6 +2,7 @@
 
 Ask questions across several PDF documents and get answers grounded **only** in their content, with page-level sources. Built with Streamlit, LangChain, FAISS and sentence-transformer embeddings, with a swappable LLM backend.
 
+>live -link: [mutli_pdf_rag_chatbot](https://multi-pdf-rag-chatbot-2akwoaytjpj7l6ro5hyvt4.streamlit.app/)
 ## Features
 
 - **Multi-document Q&A** - upload up to 5 PDFs and query them together
