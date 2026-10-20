@@ -1,42 +1,29 @@
 # 📚 Multi-PDF RAG Chatbot
 
-Ask questions across several PDF documents and get answers grounded only in their content, with page-level sources. Built with Streamlit, LangChain, FAISS and sentence-transformer embeddings, with a swappable LLM backend.
-
-<<<<<<< HEAD
-
-
-
-=======
-> Live demo: _add your Streamlit link here after deploying_
->>>>>>> 8c5bec03d185bf50b9407dafd5199dd5f0de6675
+Ask questions across several PDF documents and get answers grounded **only** in their content, with page-level sources. Built with Streamlit, LangChain, FAISS and sentence-transformer embeddings, with a swappable LLM backend.
 
 ## Features
 
-- Multi-document Q&A - upload up to 5 PDFs and query them together
-- Grounded answers with sources - every answer lists the file and page it came from, and you can inspect the exact retrieved chunks
-- Streaming responses with automatic fallback for providers that do not support streaming
-- Swappable LLM backend - Hugging Face, Groq, OpenRouter, or a local Ollama model, selected by configuration only
-- Conversation memory - recent turns are passed to the model so follow-up questions work
-- Retrieval evaluation tool - define test questions with expected keywords and measure how well retrieval finds them (useful for tuning chunk size, `k`, and MMR)
-- One-click sample document (built into `app.py`) so the app can be tried without uploading anything
-- Polished UI- gradient header, step cards, index statistics, rounded chat bubbles, and clickable suggested questions for the sample document
-- Deployment guard rails - limits on files, size, pages and questions per session, plus friendly messages for quota / rate-limit / auth errors
-- API-quota protection for public demos - a shared daily question cap and instant cached answers for the sample document's suggested questions (see below)
+- **Multi-document Q&A** - upload up to 5 PDFs and query them together
+- **Grounded answers with sources** - every answer lists the file and page it came from, and you can inspect the exact retrieved chunks
+- **Streaming responses** with automatic fallback for providers that do not support streaming
+- **Swappable LLM backend** - Hugging Face, Groq, OpenRouter, or a local Ollama model, selected by configuration only
+- **Conversation memory** - recent turns are passed to the model so follow-up questions work
+- **Retrieval evaluation tool** - define test questions with expected keywords and measure how well retrieval finds them (useful for tuning chunk size, `k`, and MMR)
+- **One-click sample document** (built into `app.py`) so the app can be tried without uploading anything
+- **Polished UI** - gradient header, step cards, index statistics, rounded chat bubbles, and clickable suggested questions for the sample document
+- **Deployment guard rails** - limits on files, size, pages and questions per session, plus friendly messages for quota / rate-limit / auth errors
+- **API-quota protection for public demos** - a shared daily question cap and instant cached answers for the sample document's suggested questions (see below)
 
 ## How it works
 
-```mermaid
-flowchart LR
-    A[PDF files] --> B[Text extraction<br/>pypdf]
-    B --> C[Chunking<br/>RecursiveCharacterTextSplitter]
-    C --> D[Embeddings<br/>all-MiniLM-L6-v2]
-    D --> E[(FAISS index)]
-    Q[User question] --> F[Retriever<br/>MMR or similarity]
-    E --> F
-    F --> G[Prompt with retrieved context]
-    G --> H[LLM<br/>HF / Groq / Ollama]
-    H --> I[Answer + sources]
-```
+### Architecture
+
+![System architect](docs/architecture.png)
+
+### Workflow
+
+![Workflow](docs/workflow.png)
 
 1. **Ingest** - text is extracted page by page, keeping `source` and `page` metadata.
 2. **Index** - pages are split into overlapping chunks, embedded locally, and stored in an in-memory FAISS index.
@@ -150,7 +137,10 @@ Open **Retrieval evaluation** in the app, list questions with the keywords that 
 ├── requirements.txt   # Python dependencies
 ├── README.md
 ├── .gitignore         # keeps .env out of Git
-└── .env               # your local settings - never committed
+├── .env               # your local settings - never committed
+└── docs/
+    ├── architecture.png   # system architecture diagram
+    └── workflow.png       # step-by-step workflow diagram
 ```
 
 ## Limitations
